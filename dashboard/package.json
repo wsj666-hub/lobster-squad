@@ -1,0 +1,12 @@
+{
+  "name": "lobster-squad-dashboard",
+  "version": "1.0.0",
+  "description": "🦞 龙虾小队监控面板",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["lobster", "squad", "dashboard", "monitoring"],
+  "author": "Lobster Squad",
+  "license": "MIT"
+}

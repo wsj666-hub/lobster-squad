@@ -1,0 +1,38 @@
+{
+  "logs": [
+    {
+      "id": "log-001",
+      "worker": "虾球",
+      "workerId": "worker-3",
+      "task": "【测试任务】收到请回复并做自我介绍",
+      "status": "completed",
+      "duration": "2m 15s",
+      "durationSeconds": 135,
+      "timestamp": "2026-03-04T14:30:00+08:00",
+      "message": "任务完成，自我介绍已发送"
+    },
+    {
+      "id": "log-002",
+      "worker": "汤圆",
+      "workerId": "worker-1",
+      "task": "【Issue #001】初始化项目结构",
+      "status": "completed",
+      "duration": "45m 30s",
+      "durationSeconds": 2730,
+      "timestamp": "2026-03-04T13:00:00+08:00",
+      "message": "项目结构创建完成"
+    },
+    {
+      "id": "log-003",
+      "worker": "丸子",
+      "workerId": "worker-2",
+      "task": "【Issue #002】设计监控面板 UI",
+      "status": "completed",
+      "duration": "1h 20m",
+      "durationSeconds": 4800,
+      "timestamp": "2026-03-04T12:00:00+08:00",
+      "message": "UI 设计完成并提交"
+    }
+  ],
+  "lastUpdated": "2026-03-04T16:25:00+08:00"
+}

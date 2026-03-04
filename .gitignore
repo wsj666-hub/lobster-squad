@@ -1,0 +1,20 @@
+# 龙虾小队监控面板 - .gitignore
+
+# 依赖
+node_modules/
+package-lock.json
+
+# 日志
+*.log
+
+# 环境配置
+.env
+.env.local
+
+# 临时文件
+*.tmp
+.DS_Store
+
+# 敏感信息
+**/token.txt
+**/secret.txt

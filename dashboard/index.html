@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🦞 龙虾小队监控面板</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            lobster: {
+              50: '#fef2f2',
+              100: '#fee2e2',
+              500: '#ef4444',
+              600: '#dc2626',
+              700: '#b91c1c',
+              900: '#7f1d1d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .pulse-dot {
+      animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes glow {
+      0%, 100% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.5); }
+      50% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.8); }
+    }
+    .working-card {
+      animation: glow 2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 min-h-screen text-white">
+  <div id="root"></div>
+
+  <!-- React 18 + Babel for JSX -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // 龙虾数据配置
+    const LOBSTERS = {
+      leader: {
+        id: 'leader',
+        name: '奥利',
+        emoji: '🤖',
+        role: '主控工头',
+        desc: '需求拆分 / 任务派发 / 审核 PR',
+        color: 'purple',
+        isWorker: false
+      },
+      deployer: {
+        id: 'deployer',
+        name: '狗子',
+        emoji: '🐕',
+        role: '部署专员',
+        desc: 'CI/CD / 打包部署 / 自动化发布',
+        color: 'blue',
+        isWorker: false
+      },
+      workers: [
+        {
+          id: 'worker-1',
+          name: '汤圆',
+          emoji: '🥟',
+          role: '全栈开发',
+          desc: 'Node.js / React / Python / MySQL',
+          color: 'green',
+          taskFile: 'task-worker-1.md',
+          skills: ['Node.js', 'React', 'Python', 'MySQL']
+        },
+        {
+          id: 'worker-2',
+          name: '丸子',
+          emoji: '🍡',
+          role: '前端/UI',
+          desc: 'React / Vue / Tailwind / Figma',
+          color: 'pink',
+          taskFile: 'task-worker-2.md',
+          skills: ['React', 'Vue', 'Tailwind', 'Figma']
+        },
+        {
+          id: 'worker-3',
+          name: '虾球',
+          emoji: '🍤',
+          role: '测试/DevOps',
+          desc: 'Vitest / Docker / CI/CD / Linux',
+          color: 'orange',
+          taskFile: 'task-worker-3.md',
+          skills: ['Vitest', 'Docker', 'CI/CD', 'Linux']
+        }
+      ]
+    };
+
+    // 状态指示器组件
+    function StatusIndicator({ status }) {
+      const colors = {
+        online: 'bg-green-500',
+        working: 'bg-green-500',  // 工作中=绿色高亮
+        busy: 'bg-red-500',       // 异常=红色
+        idle: 'bg-gray-500',      // 空闲=灰色
+        error: 'bg-red-500',
+        completed: 'bg-blue-500'
+      };
+      
+      const labels = {
+        online: '在线',
+        working: '工作中',
+        busy: '忙碌',
+        idle: '空闲',
+        error: '异常',
+        completed: '已完成'
+      };
+
+      return (
+        <div className="flex items-center gap-2">
+          <div className={`w-3 h-3 rounded-full ${colors[status] || colors.idle} pulse-dot`}></div>
+          <span className="text-sm text-gray-300">{labels[status] || '未知'}</span>
+        </div>
+      );
+    }
+
+    // 龙虾卡片组件（Issue #011: 添加 containerHealth 支持）
+    function LobsterCard({ lobster, status, task, points, onViewFiles, containerHealth }) {
+      const colorClasses = {
+        purple: 'from-purple-600 to-purple-800',
+        blue: 'from-blue-600 to-blue-800',
+        green: 'from-green-600 to-green-800',
+        pink: 'from-pink-600 to-pink-800',
+        orange: 'from-orange-600 to-orange-800'
+      };
+
+      const isWorking = status === 'working';
+      // Issue #011: 容器健康状态（仅工人显示）
+      const isContainerOnline = containerHealth?.isHealthy !== false;
+      const showHealthIndicator = lobster.taskFile; // 仅工人显示健康状态
+
+      return (
+        <div className={`relative bg-gradient-to-br ${colorClasses[lobster.color]} rounded-2xl p-6 shadow-xl transition-all duration-300 hover:scale-105 ${isWorking ? 'working-card' : ''} ${showHealthIndicator && !isContainerOnline ? 'ring-2 ring-red-500' : ''}`}>
+          {/* 状态角标 */}
+          <div className="absolute top-4 right-4 flex items-center gap-3">
+            {/* Issue #011: 容器健康状态标识 */}
+            {showHealthIndicator && (
+              <div className="flex items-center gap-1" title={isContainerOnline ? '容器在线' : '容器离线'}>
+                <div className={`w-2.5 h-2.5 rounded-full ${isContainerOnline ? 'bg-green-400' : 'bg-red-500'} pulse-dot`}></div>
+                <span className="text-xs text-gray-300">{isContainerOnline ? '🟢' : '🔴'}</span>
+              </div>
+            )}
+            <StatusIndicator status={status} />
+          </div>
+
+          {/* 头部 */}
+          <div className="flex items-center gap-4 mb-4">
+            <div className="text-5xl">{lobster.emoji}</div>
+            <div>
+              <h3 className="text-2xl font-bold">{lobster.name}</h3>
+              <p className="text-sm opacity-80">{lobster.role}</p>
+            </div>
+          </div>
+
+          {/* 描述 */}
+          <p className="text-sm opacity-70 mb-4">{lobster.desc}</p>
+
+          {/* 当前任务（仅工人） */}
+          {lobster.taskFile && task && (
+            <div className="bg-black/20 rounded-lg p-3 mb-4">
+              <p className="text-xs opacity-60 mb-1">当前任务</p>
+              <p className="text-sm">{task || '暂无任务'}</p>
+            </div>
+          )}
+
+          {/* 积分（仅工人） */}
+          {lobster.taskFile && (
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-sm">
+                <span className="opacity-60">积分：</span>
+                <span className="font-bold text-yellow-300">{points || 0}</span>
+              </div>
+              <button 
+                onClick={() => onViewFiles(lobster)}
+                className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors"
+              >
+                📄 查看文件
+              </button>
+            </div>
+          )}
+
+          {/* 技能标签（仅工人） */}
+          {lobster.skills && (
+            <div className="flex flex-wrap gap-2">
+              {lobster.skills.map((skill, i) => (
+                <span key={i} className="text-xs bg-black/20 px-2 py-1 rounded">
+                  {skill}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 统计卡片组件
+    function StatsCard({ label, value, color }) {
+      return (
+        <div className={`bg-gradient-to-br ${color} rounded-xl p-4 text-center`}>
+          <div className="text-3xl font-bold">{value}</div>
+          <div className="text-sm opacity-80">{label}</div>
+        </div>
+      );
+    }
+
+    // 文件查看弹窗组件（Issue #004）
+    function FileViewerModal({ lobster, onClose }) {
+      const [files, setFiles] = useState([]);
+      const [selectedFile, setSelectedFile] = useState(null);
+      const [fileContent, setFileContent] = useState('');
+      const [loading, setLoading] = useState(false);
+
+      const availableFiles = ['IDENTITY.md', 'SOUL.md', 'TOOLS.md', 'task.md'];
+
+      // 获取文件列表
+      useEffect(() => {
+        const loadFiles = async () => {
+          setLoading(true);
+          try {
+            const filePromises = availableFiles.map(async (filename) => {
+              try {
+                const response = await fetch(`/api/files/${lobster.id}/${filename}`);
+                const data = await response.json();
+                return { filename, content: data.content || null, error: data.error };
+              } catch (e) {
+                return { filename, content: null, error: e.message };
+              }
+            });
+            const results = await Promise.all(filePromises);
+            setFiles(results);
+          } catch (error) {
+            console.error('Failed to load files:', error);
+          }
+          setLoading(false);
+        };
+        loadFiles();
+      }, [lobster.id]);
+
+      // 选择文件时加载内容
+      const handleSelectFile = async (filename) => {
+        setSelectedFile(filename);
+        setLoading(true);
+        try {
+          const response = await fetch(`/api/files/${lobster.id}/${filename}`);
+          const data = await response.json();
+          setFileContent(data.content || data.error || '文件内容为空');
+        } catch (error) {
+          setFileContent('加载失败：' + error.message);
+        }
+        setLoading(false);
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
+          <div className="bg-gray-800 rounded-2xl max-w-4xl w-full max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* 头部 */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">{lobster.emoji}</span>
+                <div>
+                  <h3 className="text-xl font-bold">{lobster.name} 的文件</h3>
+                  <p className="text-sm text-gray-400">{lobster.role}</p>
+                </div>
+              </div>
+              <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl">✕</button>
+            </div>
+
+            {/* 内容区域 */}
+            <div className="flex flex-1 overflow-hidden">
+              {/* 文件列表 */}
+              <div className="w-48 border-r border-gray-700 p-4 overflow-y-auto">
+                <p className="text-xs text-gray-500 mb-3">可用文件</p>
+                {loading && !files.length ? (
+                  <div className="text-gray-400 text-sm">加载中...</div>
+                ) : (
+                  files.map((file, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleSelectFile(file.filename)}
+                      className={`w-full text-left p-2 rounded mb-2 text-sm transition-colors ${
+                        selectedFile === file.filename
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                      }`}
+                    >
+                      📄 {file.filename}
+                    </button>
+                  ))
+                )}
+              </div>
+
+              {/* 文件内容 */}
+              <div className="flex-1 p-6 overflow-y-auto">
+                {selectedFile ? (
+                  loading ? (
+                    <div className="text-gray-400">加载中...</div>
+                  ) : (
+                    <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono bg-gray-900 p-4 rounded-lg">
+                      {fileContent || '文件内容为空'}
+                    </pre>
+                  )
+                ) : (
+                  <div className="text-gray-500 text-center mt-20">
+                    <p className="text-4xl mb-4">📂</p>
+                    <p>点击左侧文件名查看内容</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Issue #007: Issue 卡片组件
+    function IssueCard({ issue }) {
+      const isOpen = issue.state === 'open';
+      const statusColor = isOpen ? 'bg-green-500' : 'bg-gray-500';
+      const statusText = isOpen ? 'Open' : 'Closed';
+      
+      // API 返回 createdAt，兼容 created_at
+      const createdAt = new Date(issue.createdAt || issue.created_at).toLocaleDateString('zh-CN', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      return (
+        <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-colors">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-mono text-blue-400">#{issue.number}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${statusColor} text-white`}>
+                  {statusText}
+                </span>
+              </div>
+              <h4 className="text-sm font-medium text-white truncate">{issue.title}</h4>
+              <p className="text-xs text-gray-500 mt-1">🕐 {createdAt}</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Issue #007: PR 卡片组件
+    function PRCard({ pr }) {
+      // PR 状态判断：merged 优先于 state
+      let statusConfig;
+      if (pr.merged) {
+        statusConfig = { color: 'bg-purple-500', text: 'Merged' };
+      } else if (pr.state === 'open') {
+        statusConfig = { color: 'bg-green-500', text: 'Open' };
+      } else {
+        statusConfig = { color: 'bg-gray-500', text: 'Closed' };
+      }
+      
+      // API 返回 createdAt，兼容 created_at
+      const createdAt = new Date(pr.createdAt || pr.created_at).toLocaleDateString('zh-CN', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      // API 返回 author，兼容 user.login
+      const author = pr.author || pr.user?.login || 'Unknown';
+
+      return (
+        <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-colors">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-mono text-purple-400">#{pr.number}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${statusConfig.color} text-white`}>
+                  {statusConfig.text}
+                </span>
+              </div>
+              <h4 className="text-sm font-medium text-white truncate">{pr.title}</h4>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-gray-500">👤 {author}</span>
+                <span className="text-xs text-gray-600">•</span>
+                <span className="text-xs text-gray-500">🕐 {createdAt}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Issue #013: 告警条组件
+    function AlertBanner({ alert, onClose }) {
+      if (!alert) return null;
+
+      const time = new Date(alert.timestamp).toLocaleString('zh-CN', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      return (
+        <div className="bg-red-600 text-white px-6 py-4 rounded-xl mb-6 flex items-center justify-between gap-4 shadow-lg">
+          <div className="flex items-center gap-4 flex-1">
+            <span className="text-3xl">🚨</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-bold">异常告警</span>
+                <span className="text-xs bg-red-800 px-2 py-0.5 rounded">
+                  {alert.severity === 'error' ? 'ERROR' : 'WARNING'}
+                </span>
+              </div>
+              <p className="text-sm mt-1">
+                <span className="font-medium">{alert.worker}</span>：{alert.message}
+              </p>
+              <p className="text-xs opacity-70 mt-1">🕐 {time}</p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose}
+            className="text-white/70 hover:text-white text-2xl transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+      );
+    }
+
+    // Issue #013: 日志列表组件
+    function LogViewer() {
+      const [logs, setLogs] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        const fetchLogs = async () => {
+          try {
+            const response = await fetch('/api/logs');
+            const data = await response.json();
+            setLogs(data.data || []);
+          } catch (error) {
+            console.error('Failed to fetch logs:', error);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        fetchLogs();
+        const interval = setInterval(fetchLogs, 5000); // 每 5 秒刷新
+        return () => clearInterval(interval);
+      }, []);
+
+      const getStatusColor = (status) => {
+        switch (status) {
+          case 'completed': return 'text-green-400 bg-green-500/20';
+          case 'failed': return 'text-red-400 bg-red-500/20';
+          case 'working': return 'text-yellow-400 bg-yellow-500/20';
+          default: return 'text-gray-400 bg-gray-500/20';
+        }
+      };
+
+      const getStatusLabel = (status) => {
+        switch (status) {
+          case 'completed': return '完成';
+          case 'failed': return '失败';
+          case 'working': return '进行中';
+          default: return status;
+        }
+      };
+
+      const formatTime = (timestamp) => {
+        return new Date(timestamp).toLocaleString('zh-CN', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+      };
+
+      const formatDuration = (duration) => {
+        if (duration === null || duration === undefined) return '-';
+        if (duration < 60) return `${duration}s`;
+        const mins = Math.floor(duration / 60);
+        const secs = duration % 60;
+        return `${mins}m ${secs}s`;
+      };
+
+      return (
+        <div className="bg-gray-800/30 rounded-2xl p-6 border border-gray-700">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <span>📜</span> 执行日志
+            </h3>
+            <span className="text-xs bg-blue-600/30 text-blue-300 px-2 py-1 rounded-full">
+              {logs.length} 条记录
+            </span>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-8 text-gray-400">
+              <span className="text-2xl">⏳</span>
+              <p className="text-sm mt-2">加载中...</p>
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <span className="text-2xl">📭</span>
+              <p className="text-sm mt-2">暂无日志</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-gray-400 border-b border-gray-700">
+                    <th className="text-left py-3 px-4">执行小弟</th>
+                    <th className="text-left py-3 px-4">任务</th>
+                    <th className="text-left py-3 px-4">状态</th>
+                    <th className="text-left py-3 px-4">耗时</th>
+                    <th className="text-left py-3 px-4">时间</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map((log) => (
+                    <tr key={log.id} className="border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors">
+                      <td className="py-3 px-4">
+                        <span className="flex items-center gap-2">
+                          <span>{log.emoji}</span>
+                          <span className="font-medium">{log.worker}</span>
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-gray-300 max-w-xs truncate">
+                        {log.task}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(log.status)}`}>
+                          {getStatusLabel(log.status)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-gray-400 font-mono">
+                        {formatDuration(log.duration)}
+                      </td>
+                      <td className="py-3 px-4 text-gray-400 text-xs">
+                        {formatTime(log.timestamp)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Issue #007: 任务看板组件
+    function TaskBoard() {
+      const [issues, setIssues] = useState([]);
+      const [prs, setPrs] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState(null);
+
+      useEffect(() => {
+        const fetchGithubData = async () => {
+          try {
+            setLoading(true);
+            const [issuesRes, prsRes] = await Promise.all([
+              fetch('/api/github/issues'),
+              fetch('/api/github/prs')
+            ]);
+            
+            if (!issuesRes.ok || !prsRes.ok) {
+              throw new Error('Failed to fetch GitHub data');
+            }
+            
+            const issuesData = await issuesRes.json();
+            const prsData = await prsRes.json();
+            
+            // API 返回格式：{ success: true, data: [...] }
+            setIssues(issuesData.data || []);
+            setPrs(prsData.data || []);
+            setError(null);
+          } catch (err) {
+            console.error('Failed to fetch GitHub data:', err);
+            setError(err.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        fetchGithubData();
+        const interval = setInterval(fetchGithubData, 10000); // 每 10 秒刷新
+        return () => clearInterval(interval);
+      }, []);
+
+      return (
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+            <span>📋</span> 任务看板
+          </h2>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Issue 列表 */}
+            <div className="bg-gray-800/30 rounded-2xl p-6 border border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <span>📋</span> Issue 列表
+                </h3>
+                <span className="text-xs bg-blue-600/30 text-blue-300 px-2 py-1 rounded-full">
+                  {issues.length} 个任务
+                </span>
+              </div>
+              
+              {loading ? (
+                <div className="text-center py-8 text-gray-400">
+                  <span className="text-2xl">⏳</span>
+                  <p className="text-sm mt-2">加载中...</p>
+                </div>
+              ) : error ? (
+                <div className="text-center py-8 text-red-400">
+                  <span className="text-2xl">❌</span>
+                  <p className="text-sm mt-2">{error}</p>
+                </div>
+              ) : issues.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <span className="text-2xl">📭</span>
+                  <p className="text-sm mt-2">暂无 Issue</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {issues.map(issue => (
+                    <IssueCard key={issue.id} issue={issue} />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* PR 列表 */}
+            <div className="bg-gray-800/30 rounded-2xl p-6 border border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <span>🔀</span> PR 列表
+                </h3>
+                <span className="text-xs bg-purple-600/30 text-purple-300 px-2 py-1 rounded-full">
+                  {prs.length} 个请求
+                </span>
+              </div>
+              
+              {loading ? (
+                <div className="text-center py-8 text-gray-400">
+                  <span className="text-2xl">⏳</span>
+                  <p className="text-sm mt-2">加载中...</p>
+                </div>
+              ) : error ? (
+                <div className="text-center py-8 text-red-400">
+                  <span className="text-2xl">❌</span>
+                  <p className="text-sm mt-2">{error}</p>
+                </div>
+              ) : prs.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <span className="text-2xl">📭</span>
+                  <p className="text-sm mt-2">暂无 PR</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {prs.map(pr => (
+                    <PRCard key={pr.id} pr={pr} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 主应用组件
+    function App() {
+      const [lobstersData, setLobstersData] = useState({
+        leader: { status: 'online', task: null, points: 0 },
+        deployer: { status: 'online', task: null, points: 0 },
+        workers: LOBSTERS.workers.map(() => ({ status: 'idle', task: '暂无任务', points: 0 }))
+      });
+
+      const [lastUpdate, setLastUpdate] = useState(new Date());
+      const [viewingLobster, setViewingLobster] = useState(null); // Issue #004: 文件查看弹窗
+      const [alerts, setAlerts] = useState([]); // Issue #010: 异常告警列表
+      const [containerHealth, setContainerHealth] = useState({}); // Issue #011: 容器健康状态
+
+      // 从后端 API 获取真实数据（Issue #005: 每 5 秒刷新）
+      useEffect(() => {
+        const fetchData = async () => {
+          try {
+            const response = await fetch('/api/status');
+            const data = await response.json();
+            setLobstersData(data);
+            setLastUpdate(new Date(data.timestamp));
+          } catch (error) {
+            console.error('Failed to fetch data:', error);
+          }
+        };
+
+        fetchData();
+        const interval = setInterval(fetchData, 5000); // 每 5 秒刷新
+        return () => clearInterval(interval);
+      }, []);
+
+      // Issue #010 & #011: 获取告警和容器健康状态
+      useEffect(() => {
+        const fetchHealthAndAlerts = async () => {
+          try {
+            const [healthRes, alertsRes] = await Promise.all([
+              fetch('/api/health'),
+              fetch('/api/alerts')
+            ]);
+            
+            const healthData = await healthRes.json();
+            const alertsData = await alertsRes.json();
+            
+            // 更新容器健康状态（Issue #011）
+            setContainerHealth({
+              containers: healthData.containers || [],
+              allHealthy: healthData.allHealthy,
+              lastUpdated: healthData.lastUpdated
+            });
+            
+            // 更新告警列表（Issue #010）
+            setAlerts(alertsData.alerts || []);
+          } catch (error) {
+            console.error('Failed to fetch health/alerts:', error);
+          }
+        };
+
+        fetchHealthAndAlerts();
+        const interval = setInterval(fetchHealthAndAlerts, 3000); // 每 3 秒刷新
+        return () => clearInterval(interval);
+      }, []);
+
+      const handleViewFiles = (lobster) => {
+        setViewingLobster(lobster); // 打开文件查看弹窗
+      };
+
+      const totalPoints = (lobstersData.workers || []).reduce((sum, w) => sum + (w.points || 0), 0);
+      const workingCount = (lobstersData.workers || []).filter(w => w.status === 'working').length;
+      const idleCount = (lobstersData.workers || []).filter(w => w.status === 'idle').length;
+
+      return (
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+          {/* 标题 */}
+          <div className="text-center mb-8">
+            <h1 className="text-5xl font-bold mb-2">🦞 龙虾小队监控面板</h1>
+            <p className="text-gray-400">Lobster Squad Monitor Dashboard</p>
+            <p className="text-xs text-gray-500 mt-2">
+              最后更新：{lastUpdate.toLocaleTimeString()}
+            </p>
+          </div>
+
+          {/* Issue #010: 告警条（标题下方，显示最严重的告警） */}
+          <AlertBanner 
+            alert={alerts.length > 0 ? alerts[0] : null} 
+            onClose={() => setAlerts([])} 
+          />
+
+          {/* 统计卡片 */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <StatsCard label="总积分" value={totalPoints} color="from-yellow-600 to-yellow-800" />
+            <StatsCard label="工作中" value={workingCount} color="from-green-600 to-green-800" />
+            <StatsCard label="空闲中" value={idleCount} color="from-blue-600 to-blue-800" />
+            <StatsCard label="总人数" value={LOBSTERS.workers.length + 2} color="from-purple-600 to-purple-800" />
+          </div>
+
+          {/* 主控和部署专员 */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+              <span>🎯</span> 指挥层
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <LobsterCard 
+                lobster={LOBSTERS.leader}
+                {...lobstersData.leader}
+                onViewFiles={handleViewFiles}
+              />
+              <LobsterCard 
+                lobster={LOBSTERS.deployer}
+                {...lobstersData.deployer}
+                onViewFiles={handleViewFiles}
+              />
+            </div>
+          </div>
+
+          {/* 执行小弟 */}
+          <div>
+            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+              <span>👷</span> 执行小弟
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {LOBSTERS.workers.map((worker, index) => {
+                // Issue #011: 查找对应容器的健康状态
+                const container = (containerHealth.containers || []).find(
+                  c => c.service === worker.id || c.name.includes(worker.id)
+                );
+                const healthStatus = container ? { isHealthy: container.isHealthy } : { isHealthy: false };
+                
+                return (
+                  <LobsterCard 
+                    key={worker.id}
+                    lobster={worker}
+                    {...lobstersData.workers[index]}
+                    onViewFiles={handleViewFiles}
+                    containerHealth={healthStatus}
+                  />
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Issue #007: 任务看板 */}
+          <div className="mt-8">
+            <TaskBoard />
+          </div>
+
+          {/* Issue #013: 执行日志（面板底部） */}
+          <div className="mt-8">
+            <LogViewer />
+          </div>
+
+          {/* 页脚 */}
+          <div className="text-center mt-12 text-gray-500 text-sm">
+            🦞 龙虾小队，使命必达！
+          </div>
+
+          {/* Issue #004: 文件查看弹窗 */}
+          {viewingLobster && (
+            <FileViewerModal
+              lobster={viewingLobster}
+              onClose={() => setViewingLobster(null)}
+            />
+          )}
+        </div>
+      );
+    }
+
+    // 渲染应用
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+# 🦞 龙虾小队 - Docker 忽略文件
+# Issue #014
+
+node_modules
+.git
+*.log

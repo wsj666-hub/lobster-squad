@@ -1,0 +1,22 @@
+# 🦞 龙虾小队监控面板 - Docker Compose 配置
+# Issue #014: Docker 部署配置
+
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lobster-dashboard
+    ports:
+      - "3456:3456"
+    volumes:
+      - ../shared:/app/shared:ro
+      - ../configs:/app/configs:ro
+    networks:
+      - lobster-net
+    restart: unless-stopped
+
+networks:
+  lobster-net:
+    external: true
+    name: lobster-squad_lobster-net

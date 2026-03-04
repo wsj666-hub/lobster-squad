@@ -1,0 +1,73 @@
+services:
+  # ==================== 小弟 1 ====================
+  worker-1:
+    image: node:20-alpine
+    container_name: lobster-worker-1
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./workers/worker-1:/app/workspace
+      - ./shared:/app/shared
+      - ./configs/worker-1:/app/config
+    environment:
+      - WORKER_ID=worker-1
+      - OPENCLAW_WORKDIR=/app/workspace
+    command: >
+      sh -c "
+        echo '🦞 Worker-1 启动...' &&
+        echo '工作目录：/app/workspace' &&
+        echo '共享目录：/app/shared' &&
+        tail -f /dev/null
+      "
+    networks:
+      - lobster-net
+
+  # ==================== 小弟 2 ====================
+  worker-2:
+    image: node:20-alpine
+    container_name: lobster-worker-2
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./workers/worker-2:/app/workspace
+      - ./shared:/app/shared
+      - ./configs/worker-2:/app/config
+    environment:
+      - WORKER_ID=worker-2
+      - OPENCLAW_WORKDIR=/app/workspace
+    command: >
+      sh -c "
+        echo '🦞 Worker-2 启动...' &&
+        echo '工作目录：/app/workspace' &&
+        echo '共享目录：/app/shared' &&
+        tail -f /dev/null
+      "
+    networks:
+      - lobster-net
+
+  # ==================== 小弟 3 ====================
+  worker-3:
+    image: node:20-alpine
+    container_name: lobster-worker-3
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./workers/worker-3:/app/workspace
+      - ./shared:/app/shared
+      - ./configs/worker-3:/app/config
+    environment:
+      - WORKER_ID=worker-3
+      - OPENCLAW_WORKDIR=/app/workspace
+    command: >
+      sh -c "
+        echo '🦞 Worker-3 启动...' &&
+        echo '工作目录：/app/workspace' &&
+        echo '共享目录：/app/shared' &&
+        tail -f /dev/null
+      "
+    networks:
+      - lobster-net
+
+networks:
+  lobster-net:
+    driver: bridge
