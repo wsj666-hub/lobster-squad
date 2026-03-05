@@ -1,0 +1,23 @@
+{
+  "workers": {
+    "worker-1": {
+      "name": "汤圆",
+      "emoji": "🥟",
+      "totalPoints": 0,
+      "history": []
+    },
+    "worker-2": {
+      "name": "丸子",
+      "emoji": "🍡",
+      "totalPoints": 0,
+      "history": []
+    },
+    "worker-3": {
+      "name": "虾球",
+      "emoji": "🍤",
+      "totalPoints": 0,
+      "history": []
+    }
+  },
+  "lastUpdated": "2026-03-05T06:46:36.000Z"
+}
